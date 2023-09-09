@@ -1,0 +1,120 @@
+---
+# tasks file for ubuntu-pcidss
+# 1 - Requirement 1: Build and Maintain a Secure Network
+- name: Ensure firewall is installed
+  apt:
+   name: ufw
+   state: present
+  ignore_errors: True
+
+- name: Ensure UFW is enabled
+  ufw:
+    state: enabled
+  ignore_errors: True
+
+
+# 2 - Requirement 2: Do Not Use Vendor-Supplied Defaults
+- name: Ensure the 'ubuntu' default user is removed
+  user:
+   name: ubuntu
+   state: absent
+
+- name: Ensure the system packages are updated
+  apt:
+   update_cache: yes
+   upgrade: safe
+
+- name: Harden SSH Ciphers
+  lineinfile:
+   path: /etc/ssh/sshd_config
+   state: present
+   regexp: '^Ciphers'
+   line: 'Ciphers aes256-ctr,aes192-ctr,aes128-ctr'
+
+
+# 5 - PCI Requirement 5: Maintain a Vulnerability Management Program
+- name: Ensure antivirus is installed
+  apt:
+   name:
+    - clamav
+    - clamav-daemon
+   state: present
+  ignore_errors: True
+
+- name: Ensure antivirus daemon is enabled and running
+  service:
+   name: clamav-daemon
+   state: started
+   enabled: yes
+  ignore_errors: True
+
+
+# 6 - PCI Requirement 6: Develop and Maintain Secure Systems and Applications
+- name: Update and upgrade system packages
+  apt:
+   update_cache: yes
+   upgrade: full
+
+
+# 8 - PCI Requirement 8: Identify and Authenticate Access to System Components
+- name: Ensure SSH key authentication is preferred
+  lineinfile:
+   dest: /etc/ssh/sshd_config
+   regexp: '^PubkeyAuthentication'
+   line: 'PubkeyAuthentication yes'
+   state: present
+
+- name: Ensure SSH root login is disabled
+  lineinfile:
+   dest: /etc/ssh/sshd_config
+   regexp: '^PermitRootLogin'
+   line: 'PermitRootLogin no'
+   state: present
+
+- name: Ensure SSH password authentication is disabled
+  lineinfile:
+   dest: /etc/ssh/sshd_config
+   regexp: '^PasswordAuthentication'
+   line: 'PasswordAuthentication no'
+   state: present
+
+- name: Ensure fail2ban is installed
+  apt:
+   name: fail2ban
+   state: present
+  ignore_errors: True
+
+- name: Ensure fail2ban service is running and enabled
+  service:
+   name: fail2ban
+   state: started
+   enabled: yes
+  ignore_errors: True
+
+# 9 - PCI Requirement 9: Implement Strong Access Control Measures
+- name: Ensure /etc/shadow exists
+  stat:
+   path: /etc/shadow
+  register: shadow_file
+  failed_when: not shadow_file.stat.exists
+
+- name: Ensure passwords aren't in /etc/passwd
+  command:
+   cmd: grep -E '^[^:]+:[^:]*:[0-9]+' /etc/passwd
+  register: passwd_check
+  changed_when: false
+  failed_when: passwd_check.stdout != ""
+
+- name: Ensure /etc/passwd has correct permissions
+  file:
+   path: /etc/passwd
+   mode: '0644'
+  register: passwd_perm
+  changed_when: passwd_perm.mode != "0644"
+
+- name: Ensure /etc/shadow has correct permissions
+  file:
+   path: /etc/shadow
+   mode: '0600'
+  register: shadow_perm
+  changed_when: shadow_perm.mode != "0600"
